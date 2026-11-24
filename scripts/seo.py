@@ -89,6 +89,9 @@ def head(path, title, description, image, alt, label):
     return "\n".join(tags) + f'<script type="application/ld+json">{data}</script>'
 
 
+PHOTO_DESCRIPTIONS = {'00059b25504653144290ea9e36477afb1c2cd64e2056fb61862ae5749d8c0e84.png': 'Academy reception desk with a wall-mounted screen and classroom signage', 'd4b0a0af08f02b02f368234a7221ea13089f994d624d270c835bb06185599194.png': 'Classroom with individual writing chairs facing the teaching desk', '0295d3fa0e9a11945a8254c453b63765cfd886ef8de499f45d8bea2ba38e082e.png': 'Leicester Square classroom sign beside the glass-panelled entrance'}
+
+
 def improve_image(match):
     tag = match[0]
     attrs = Inventory()
@@ -98,6 +101,8 @@ def improve_image(match):
     if not re.fullmatch(r"\./assets/[a-f0-9]{64}\.(png|jpg|webp)", src):
         return tag
     file = output / src
+    if img.get("alt") == "" and file.name in PHOTO_DESCRIPTIONS:
+        tag = tag.replace('alt=""', f'alt="{escape(PHOTO_DESCRIPTIONS[file.name])}"', 1)
     with Image.open(file) as original:
         width, height = original.size
         if "width" not in img and "height" not in img:
@@ -145,11 +150,12 @@ html = html.replace("</head>", head("",home_title,home_desc,image,alt,"MeritGate
 html = html.replace('<div class="metric-grid">','<div class="metric-grid" data-nosnippet>') if 'class="test-note"' in html else html
 html = re.sub(r'(<p><strong>[^<]*</strong>[^<]*test figure</p>)',r'<div data-nosnippet>\1</div>',html)
 nav = '<nav class="wrap section" aria-label="Applicant guides"><h2>MeritGate applicant guides</h2>'+guide_links()+'</nav>'
-html = html.replace("</main>",nav+"</main>",1)
+closing = '<section class="closing">'
+html = html.replace(closing,nav+closing,1) if closing in html else html.replace("</main>",nav+"</main>",1)
 index.write_text(html)
 for slug,label,desc,intro,sections,questions in GUIDES:
     path = slug+"/"
-    title = label+" | MeritGate"
+    title = label if "MeritGate" in label else label+" | MeritGate"
     body = f'<header><a href="/">MeritGate</a> / Applicant guides</header><main><h1>{escape(label)}</h1><p>{escape(intro)}</p>'
     for heading, paragraph, anchor, link in sections:
         body += f'<section><h2>{heading}</h2><p>{escape(paragraph)}</p><a href="/#{anchor}">{link}</a></section>'

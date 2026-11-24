@@ -1,0 +1,47 @@
+name: Audit public MeritGate search pages
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/search-audit.yml
+  workflow_run:
+    workflows: ["Publish live MeritGate mirror"]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Measure mobile page experience and SEO
+        env:
+          SITE: https://meritgate.europolytech.academy
+        run: |
+          mkdir reports
+          for page in / /porto-scholarship/ /international-applicants/ /study-routes/; do
+            slug=$(echo "$page" | tr -d '/')
+            npx --yes lighthouse@12.8.2 "$SITE$page" --chrome-flags="--headless --no-sandbox" --only-categories=performance,seo,accessibility --output=json --output-path="reports/${slug:-homepage}.json" --quiet
+          done
+      - name: Summarise the four mobile audits
+        run: |
+          node --input-type=module <<'JS' >> "$GITHUB_STEP_SUMMARY"
+          import fs from 'node:fs';
+          console.log('| Page | SEO | Performance | Accessibility | LCP | CLS |');
+          console.log('|---|---:|---:|---:|---:|---:|');
+          for (const name of fs.readdirSync('reports')) {
+            const report = JSON.parse(fs.readFileSync('reports/'+name));
+            if (report.runtimeError || report.audits['http-status-code'].score !== 1) throw Error('Page audit failed for '+name);
+            const score = key => Math.round(report.categories[key].score * 100);
+            console.log('|', [name,score('seo'),score('performance'),score('accessibility'),report.audits['largest-contentful-paint'].displayValue,report.audits['cumulative-layout-shift'].displayValue].join(' | '),'|');
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-search-audits
+          path: reports
+          retention-days: 30

@@ -111,7 +111,7 @@ def improve_image(match):
             return tag
         image = ImageOps.exif_transpose(original)
         variants = []
-        sizes = [152] if img.get("class") == "brand-logo" else [480, 960, 1440]
+        sizes = [152] if img.get("class") == "brand-logo" else [480, 720, 960, 1440]
         for limit in sorted(set(min(w, image.width) for w in sizes)):
             resized = image.copy()
             resized.thumbnail((limit, image.height), Image.Resampling.LANCZOS)
@@ -129,6 +129,13 @@ def improve_image(match):
 output = Path(sys.argv[1])
 index = output / "index.html"
 html = re.sub(r"<img\b[^>]*>", improve_image, index.read_text())
+# Give the dormant video link a useful destination even before the player opens.
+first_video = re.search(r'data-youtube="([a-zA-Z0-9_-]{11})"', html)
+if first_video:
+    html = html.replace('<a class="youtube-link" ', f'<a class="youtube-link" href="https://www.youtube.com/watch?v={first_video[1]}" ', 1)
+html = html.replace('<div class="mgw-rail" aria-label=', '<div class="mgw-rail" role="group" aria-label=')
+# The visible title and contributor together supply each film button's accessible name.
+html = re.sub(r'(<button[^>]*class="film-tile"[^>]*?) aria-label="[^"]*"', r'\1', html)
 inventory = Inventory()
 inventory.feed(html)
 hero = next((i for i in inventory.images if i.get("fetchpriority") == "high"), {})

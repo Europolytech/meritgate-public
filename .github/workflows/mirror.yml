@@ -1,0 +1,35 @@
+name: Publish live MeritGate mirror
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/mirror.py
+      - .github/workflows/mirror.yml
+permissions:
+  contents: read
+  pages: write
+  actions: write
+  id-token: write
+concurrency:
+  group: meritgate-public-mirror
+  cancel-in-progress: false
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/mirror.py public
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/deploy-pages@v4
+        id: deploy
